@@ -44,11 +44,15 @@ get_complaint_resources = func(sqs_policy_resources, policy_document_resources) 
 
 get_referenced_policy_statements = func(res) {
 	policy = res.config.policy
-	if policy[const.references] is not defined or policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$" {
+	if policy[const.references] is not defined or policy[const.references][1] not matches "^aws_iam_policy_document.(.*)$" {
 		return false
 	}
 	reference = policy[const.references][1]
-	address = strings.trim_prefix(reference, "data.")
+
+	// FIX: Strip .json suffix if present
+	// reference could be "aws_iam_policy_document.name.json" or "aws_iam_policy_document.name"
+	address = strings.trim_suffix(reference, ".json")
+
 	// Append the module address to the data source's local address
 	// in case of nested modules
 	if strings.has_prefix(res.module_address, const.module_prefix) {
@@ -56,6 +60,24 @@ get_referenced_policy_statements = func(res) {
 	}
 
 	datasource = tf.plan(tfplan.planned_values.resources).type(const.resource_aws_iam_policy_document).address(address).resources
+
+	// FIX: Add defensive checks for undefined datasource
+	if datasource is undefined or datasource is null or datasource is empty {
+		return false
+	}
+
+	if datasource[0] is undefined or datasource[0] is null {
+		return false
+	}
+
+	if datasource[0].values is undefined or datasource[0].values is null {
+		return false
+	}
+
+	if datasource[0].values.statement is undefined or datasource[0].values.statement is null {
+		return false
+	}
+
 	return filter datasource[0].values.statement as _, statement {
 		not (statement.effect is "Allow" and any statement.principals as _, principal {
 			principal.type is "*"
