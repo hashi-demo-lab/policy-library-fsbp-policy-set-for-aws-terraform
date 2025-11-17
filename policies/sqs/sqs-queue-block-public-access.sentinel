@@ -38,6 +38,10 @@ get_complaint_resources = func(sqs_policy_resources, policy_document_resources) 
 		if value is null {
 			return true
 		}
+		// FIX: Handle boolean false return value
+		if value is false {
+			return true
+		}
 		return value is empty
 	})
 }
