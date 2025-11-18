@@ -1,0 +1,80 @@
+# This policy mandates all 'aws_s3_bucket_versioning' resources to have MFA delete enabled.
+
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
+# Imports
+
+import "tfplan/v2" as tfplan
+import "tfresources" as tf
+import "report" as report
+import "collection" as collection
+import "collection/maps" as maps
+
+# Constants
+const = {
+	"policy_name":                          "s3-require-mfa-delete",
+	"resource_aws_s3_bucket_versioning":    "aws_s3_bucket_versioning",
+	"message": "S3 general purpose buckets that use versioning should be configured to use MFA delete for an added layer of protection. Refer to https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html#s3-8 for more details.",
+}
+
+# Functions
+
+get_violations = func(resources) {
+	if resources is empty or resources is not defined {
+		return []
+	}
+
+	return filter resources as _, res {
+		# Check if values exist before accessing nested properties
+		if res.values is not defined {
+			# If values don't exist, consider it a violation
+			true
+		} else {
+			versioning_configuration = maps.get(res.values, "versioning_configuration", [])
+
+			# If no versioning configuration exists, not a violation
+			if versioning_configuration is empty or versioning_configuration[0] is not defined {
+				false
+			} else {
+				# Check if versioning is enabled
+				status = maps.get(versioning_configuration[0], "status", "")
+				if status is not "Enabled" {
+					# If versioning is not enabled, MFA delete is not applicable
+					false
+				} else {
+					# Check if MFA delete is enabled
+					mfa_delete = maps.get(versioning_configuration[0], "mfa_delete", "")
+					# Violation if MFA delete is not "Enabled"
+					mfa_delete is not "Enabled"
+				}
+			}
+		}
+	}
+}
+
+# Variables
+
+aws_s3_bucket_versioning = tf.plan(tfplan.planned_values.resources).type(const.resource_aws_s3_bucket_versioning).resources
+violations = get_violations(aws_s3_bucket_versioning)
+
+summary = {
+	"policy_name": const.policy_name,
+	"violations": map violations as _, v {
+		{
+			"address":        v.address,
+			"module_address": v.module_address,
+			"message":        const.message,
+		}
+	},
+}
+
+# Outputs
+
+print(report.generate_policy_report(summary))
+
+# Rules
+
+main = rule {
+	violations is empty
+}
