@@ -46,7 +46,13 @@ resource_address_without_module_address = func(res) {
 
 get_referenced_policy_statements = func(res) {
 	policy = res.config.policy
-	if policy is not defined or policy[const.references] is not defined or policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$" {
+	if policy is not defined {
+		return []
+	}
+	if policy[const.references] is not defined {
+		return []
+	}
+	if policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$" {
 		return []
 	}
 	reference = policy[const.references][1]
@@ -112,7 +118,9 @@ buckets_without_valid_policy = filter s3_bucket_resources as _, res {
 }
 
 bucket_policies_without_datasources = filter s3_bucket_policy_resources as _, res {
-	res.config.policy is not defined or res.config.policy[const.references] is not defined or res.config.policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$"
+	(res.config.policy is not defined) or
+	(res.config.policy is defined and res.config.policy[const.references] is not defined) or
+	(res.config.policy is defined and res.config.policy[const.references] is defined and res.config.policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$")
 }
 
 bucket_addresses_for_inline_policies = map bucket_policies_without_datasources as _, res {
