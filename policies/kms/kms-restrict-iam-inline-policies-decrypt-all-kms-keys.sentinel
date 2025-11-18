@@ -23,10 +23,12 @@ const = {
 get_violations = func(resources) {
 	return collection.reject(resources, func(res) {
 		statements = maps.get(res, "values.statement", [])
-		for statements as statement {
-			actions = maps.get(statement, "actions", [])
-			if actions contains "kms:ReEncryptFrom" or actions contains "kms:Decrypt" {
-				return false
+		if statements is not null {
+			for statements as statement {
+				actions = maps.get(statement, "actions", [])
+				if actions contains "kms:ReEncryptFrom" or actions contains "kms:Decrypt" {
+					return false
+				}
 			}
 		}
 		return true
