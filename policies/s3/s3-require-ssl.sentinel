@@ -45,17 +45,14 @@ resource_address_without_module_address = func(res) {
 }
 
 get_referenced_policy_statements = func(res) {
+	# Check if policy exists first
+	if res.config.policy is not defined {
+		return []
+	}
 	policy = res.config.policy
-	if policy is not defined {
-		return []
-	}
-	if policy[const.references] is not defined {
-		return []
-	}
-	if policy[const.references][1] is not defined {
-		return []
-	}
-	if policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$" {
+	if policy[const.references] is not defined or
+	   length(policy[const.references]) < 2 or
+	   policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$" {
 		return []
 	}
 	reference = policy[const.references][1]
@@ -68,7 +65,8 @@ get_referenced_policy_statements = func(res) {
 	}
 
 	datasource = tf.state(tfstate.resources).mode("data").address(address).resources
-	if datasource is empty or datasource[0] is not defined or datasource[0].values is not defined or datasource[0].values.statement is not defined {
+	# Check if datasource exists and has the expected structure
+	if datasource is empty or datasource[0].values.statement is not defined {
 		return []
 	}
 	return filter datasource[0].values.statement as _, statement {
@@ -121,10 +119,10 @@ buckets_without_valid_policy = filter s3_bucket_resources as _, res {
 }
 
 bucket_policies_without_datasources = filter s3_bucket_policy_resources as _, res {
-	(res.config.policy is not defined) or
-	(res.config.policy is defined and res.config.policy[const.references] is not defined) or
-	(res.config.policy is defined and res.config.policy[const.references] is defined and res.config.policy[const.references][1] is not defined) or
-	(res.config.policy is defined and res.config.policy[const.references] is defined and res.config.policy[const.references][1] is defined and res.config.policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$")
+	res.config.policy is not defined or
+	res.config.policy[const.references] is not defined or
+	length(res.config.policy[const.references]) < 2 or
+	res.config.policy[const.references][1] not matches "^data.aws_iam_policy_document.(.*)$"
 }
 
 bucket_addresses_for_inline_policies = map bucket_policies_without_datasources as _, res {
